@@ -4,85 +4,140 @@
 // So added 0.15 to parsePH
 
 // Declarations for pH subsystem
-int phAnalogPin = A1;
-int phRawRead = 0;
-double phRead = 7.0;
-int pH7Read = 240;
-int pH4Read = 160;
+int ph_ana_in = A1;
+int ph_ana_out_1 = 5;
+int ph_ana_out_2 = 6;
+double ph_reading = 7.0;
+unsigned long sys_time = 0;
+int ph_pump_1_state;
+int ph_pump_2_state;
+int ph_next_time;
+void ph_init();
 
-double parsePh(int);
-double pHPid(double, double);
+void ph_pump_start(int);
+void ph_pump_stop(int);
+
+double ph_measure();
 
 // Declarations for pid for pH
-#define PH_INT_ERR_MAX 0
-#define PH_INT_ERR_MIN 0
-double pHPrevVal;
-double pHPrevErr;
-double pHPrevTime;
-double pHPrev;
-double pHDt;
-double pHIntErr;
-int pHT;
-double pHCalcP(double, double);
-double pHCalcI(double, double, int);
-double phCalcD(double, double);
+//double pHPrevVal;
+//double pHPrevErr;
+//double pHPrevTime;
+//double pHPrev;
+//double pHDt;
+//double pHIntErr;
+//int pHT;
+//double pHCalcP(double, double);
+//double pHCalcI(double, double, int);
+//double phCalcD(double, double);
+void ph_init()
+{
+  ph_pump_1_state = 0;
+  ph_pump_2_state = 0;
+  ph_next_time = 0;
+}
+
+void ph_pump_start(int pump_number)
+{
+  if (pump_number == 1)
+  {
+    if (!(ph_pump_1_state))
+    {
+        ph_pump_stop(2);
+        analogWrite(ph_ana_out_1, 255);
+        ph_pump_1_state = 1;
+    }
+  }
+  else
+  {
+    if (!(ph_pump_2_state))
+    {
+        ph_pump_stop(1);
+        analogWrite(ph_ana_out_2, 255);
+        ph_pump_2_state = 1;
+    }
+  }
+}
+
+void ph_pump_stop(int pump_number)
+{
+  if (pump_number == 1)
+  {
+    if (ph_pump_1_state)
+    {
+        analogWrite(ph_ana_out_1, 0);
+        ph_pump_1_state = 0;
+    }
+  }
+  else
+  {
+    if (ph_pump_2_state)
+    {
+        analogWrite(ph_ana_out_2, 0);
+        ph_pump_2_state = 0;
+    }
+  }
+}
 
 void setup()
 {
   Serial.begin(9600);
-  pHIntErr = 0;
-  pHPrevErr = 0;
-  pHDt = 0;
+  sys_time = micros();
+  ph_init();
+  //pHIntErr = 0;
+  //pHPrevErr = 0;
+  //pHDt = 0;
 }
 
-double parsePh(int phRawRead)
+double ph_measure()
 {
-  return -0.04 * phRawRead + 15.763;
+  int ph_raw = analogRead(ph_ana_in);
+  return -0.0395 * ph_raw + 15.5;
+}
+
+double ph_control(double ph_target, double ph_tolerance)
+{
+  //pump 1 raise ph
+  //pump 2 reduce ph
+  double ph_reading = ph_measure();
+  if (ph_reading < ph_target - ph_tolerance)
+  {
+    ph_pump_start(1);
+  }
+  else if (ph_reading < ph_target)
+  {
+    ph_pump_stop(2);
+  }
+  else if (ph_reading < ph_target + ph_tolerance)
+  {
+    ph_pump_stop(1);
+  }
+  else if (ph_reading > ph_target + ph_tolerance)
+  {
+    ph_pump_start(2);
+  }
+
 }
 
 void loop()
 {
-  phRawRead = analogRead(phAnalogPin);
   // phRawRead = 280;
   // Serial.print("pH Value: ");
   //Serial.println(phRawRead);
-  phRead = parsePh(phRawRead);
-  Serial.println(phRead);
-  delay(100); 
-  if ((int))
-}
-
-double pHPid(double targetVal, double currentVal, double P, double I, double D)
-{
-
-  return P * pHCalcP(targetVal, currentVal) + I * pHCalcI(targetVal, currentVal, T) + D * pHCalcD(targetVal, currentVal);
-}
-
-double pHCalcP(double targetVal, double currentVal)
-{
-  return targetVal - currentVal;
-}
-
-double pHCalcI(double targetVal, double currentVal, int T)
-{
-  double currentTime = (double)(T) * (1e-6);
-  pHDt = currentTime - pHPrevTime;
-  pHPrevTime = currentTime;
-  pHIntErr += (targetVal - currentVal) * pHDt;
-  if (pHIntErr > PH_INT_ERR_MAX)
+  sys_time = millis();
+  if (sys_time > 0x0fffffff)
   {
-    pHIntErr = PH_INT_ERR_MAX;
+    sys_time -= 0x0fffffff;
+    ph_next_time = 0;
   }
-  else if (pHIntErr < PH_INT_ERR_MIN)
+  if (sys_time > ph_next_time)
   {
-    pHIntErr = PH_INT_ERR_MIN;
-  }
-  return pHIntErr;
-}
+    ph_next_time += 1e3;
+    //analogWrite(ph_ana_out_1, 255);
+    Serial.println(ph_measure());
+    ph_control(1.0, 1.0);
 
-double pHCalcD(double targetVal, double currentVal)
-{
-  return 0;
+  }
 }
 
 
