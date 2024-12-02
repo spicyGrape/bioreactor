@@ -8,11 +8,13 @@ int ph_ana_in = A1;
 int ph_ana_out_1 = 5;
 int ph_ana_out_2 = 6;
 double ph_reading = 7.0;
+double ph_buffer[10];
 unsigned long sys_time = 0;
 int ph_pump_1_state;
 int ph_pump_2_state;
 int ph_next_time;
 void ph_init();
+int prev_sys_time = 0;
 
 void ph_pump_start(int);
 void ph_pump_stop(int);
@@ -92,7 +94,19 @@ void setup()
 double ph_measure()
 {
   int ph_raw = analogRead(ph_ana_in);
-  return -0.0395 * ph_raw + 15.5;
+  int ph_parsed = -0.0395 * ph_raw + 15.5;
+  for (int i = 0; i < 9; i++)
+  {
+    ph_buffer[i] = ph_buffer[i+1];
+  }
+  ph_buffer[9] = ph_parsed;
+  double ph_average = 0.0;
+  for (int i = 0; i < 10; i++)
+  {
+    ph_average += ph_buffer[i];
+  }
+  ph_average *= 0.1;
+  return ph_average;
 }
 
 double ph_control(double ph_target, double ph_tolerance)
@@ -123,21 +137,19 @@ void loop()
 {
   // phRawRead = 280;
   // Serial.print("pH Value: ");
-  //Serial.println(phRawRead);
+  // Serial.println(phRawRead);
   sys_time = millis();
-  if (sys_time > 0x0fffffff)
+  if (sys_time < prev_sys_time)
   {
-    sys_time -= 0x0fffffff;
     ph_next_time = 0;
   }
   if (sys_time > ph_next_time)
   {
     ph_next_time += 1e3;
-    //analogWrite(ph_ana_out_1, 255);
     Serial.println(ph_measure());
     ph_control(1.0, 1.0);
-
   }
+  prev_sys_time = sys_time;
 }
 
 
